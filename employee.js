@@ -1,6 +1,6 @@
 const mysql = require("mysql2/promise");
 const inquirer = require("inquirer");
-const cTable = require("console.table");
+const consoleTable = require("console.table");
 
 const main = async () => {
     try {
@@ -12,9 +12,9 @@ const main = async () => {
             database: "employee_db"
         });
 
-        console.log(`Connected to db with id: ${connection.threadId}`);
+        console.log(`Connected to DB with id: ${connection.threadId}`);
 
-        start(connection);
+            run(connection);
 
     } catch (err) {
         console.log(err);
@@ -23,7 +23,7 @@ const main = async () => {
 
 main();
 
-const startPrompt = async () => {
+const inqPrompt = async () => {
     return inquirer
         .prompt({
             name: "employee",
@@ -33,40 +33,40 @@ const startPrompt = async () => {
         })
 };
 
-const start = async (connection) => {
-    const answer = await startPrompt();
+const run = async (connection) => {
+    const answer = await inqPrompt();
     switch (answer.employee) {
         case "Add Department":
-            const addDeparmentAns = await addDepartmentPrompt(connection);
-            await addDepartment(connection, addDeparmentAns);
-            await start(connection);
+            const addDeptSelection = await addDeptPrompt(connection);
+            await addDept(connection, addDeptSelection);
+            await run(connection);
             break;
         case "Add Employee Role":
-            const addRoleAns = await addRolePrompt(connection);
-            await addRole(connection, addRoleAns);
-            await start(connection);
+            const addRoleSelection = await addRolePrompt(connection);
+            await addRole(connection, addRoleSelection);
+            await run(connection);
             break;
         case "Add Employee":
-            const addEmployeeAns = await addEmployeePrompt(connection);
-            await addEmployee(connection, addEmployeeAns);
-            await start(connection);
+            const addEmployeeSelection = await addEmployeePrompt(connection);
+            await addEmployee(connection, addEmployeeSelection);
+            await run(connection);
             break;
         case "View Departments":
-            await readAllDepartment(connection);
-            await start(connection);
+            await readDept(connection);
+            await run(connection);
             break;
         case "View Roles":
-            await readAllRole(connection);
-            await start(connection);
+            await readRole(connection);
+            await run(connection);
             break;
         case "View Employees":
-            await readAllEmplyees(connection);
-            await start(connection);
+            await readEmployees(connection);
+            await run(connection);
             break;
         case "Update Employee Role":
-            const updateRoleAns = await updateRolePrompt(connection);
-            await updateRole(connection,updateRoleAns);
-            await start(connection);
+            const updateRoleSelection = await updateRolePrompt(connection);
+            await updateRole(connection,updateRoleSelection);
+            await run(connection);
             break;
        
         default:
@@ -74,42 +74,84 @@ const start = async (connection) => {
     };
 };
 
-//view department name
-const readAllDepartment = async (connection) => {
+//Add Dept - Prompt
+const addDeptPrompt = async (connection) => {
+    return inquirer
+        .prompt([
+            {
+                name: "deptName",
+                type: "input",
+                message: "Enter a department name?"
+            }
+        ])
+};
+
+//Query Dept
+const getDept = async (connection) => {
+    const [rows, fields] = await connection.query("SELECT * FROM department");
+    return rows;
+};
+
+
+//Add Dept to DB
+const addDept = async (connection, addDeptSelection) => {
+    const sqlQuery = "INSERT INTO department(name) VALUES (?)";
+    const params = [addDeptSelection.deptName];
+    const [rows, fields] = await connection.query(sqlQuery, params);
+    console.table(rows);
+};
+
+//View Dept
+const readDept = async (connection) => {
     const [rows, fields] = await connection.query("SELECT name AS department FROM department");
     console.table(rows);
     return rows;
 };
 
-//query with all info from department table
-const getDepartment = async (connection) => {
-    const [rows, fields] = await connection.query("SELECT * FROM department");
-    return rows;
-};
 
-//prompt questions - department info
-const addDepartmentPrompt = async (connection) => {
+//Add Role - Prompt
+const addRolePrompt = async (connection) => {
+    let role = await getDept(connection);
+    role = role.map((dept) => {
+        return `${dept.id}, ${dept.name}`;
+    });
     return inquirer
         .prompt([
             {
-                name: "departmentName",
+                name: "title",
                 type: "input",
-                message: "What is the department name?"
+                message: "Enter a job title?"
+            },
+            {
+                name: "salary",
+                type: "input",
+                message: "Enter a salary?"
+            },
+            {
+                name: "departmentID",
+                type: "list",
+                message: "Which department does role apply to?",
+                choices: role
             }
         ])
 };
 
-//Add new department to database
-const addDepartment = async (connection, addDeparmentAns) => {
-    const sqlQuery = "INSERT INTO department(name) VALUES (?)";
-    const params = [addDeparmentAns.departmentName];
+//Query Managers
+const viewManager = async (connection) => {
+    const [rows, fields] = await connection.query("SELECT * FROM employee WHERE manager_id IS NULL");
+    return rows;
+};
+
+//Add Role to DB
+const addRole = async (connection, addRoleSelection) => {
+    const sqlQuery = ("INSERT INTO role(title,salary,department_id) VALUE(?,?,?)");
+    const params = [addRoleSelection.title, addRoleSelection.salary, addRoleSelection.departmentID.split(",")[0]];
     const [rows, fields] = await connection.query(sqlQuery, params);
     console.table(rows);
 };
 
-
-//view roles title, salary, department name
-const readAllRole = async (connection) => {
+//View Role 
+const readRole = async (connection) => {
     const [rows, fields] = await connection.query("SELECT role.id,role.title, role.salary, department.name AS department FROM role INNER JOIN department ON department.id = role.department_id ");
     console.table(rows);
     return rows;
@@ -120,67 +162,18 @@ const getRole = async (connection) => {
     return rows;
 };
 
-//create new role - prompt questions
-const addRolePrompt = async (connection) => {
-    let allDepartments = await getDepartment(connection);
-    allDepartments = allDepartments.map((department) => {
-        return `${department.id}, ${department.name}`;
-    });
-    return inquirer
-        .prompt([
-            {
-                name: "title",
-                type: "input",
-                message: "What is the job title?"
-            },
-            {
-                name: "salary",
-                type: "input",
-                message: "What is the salary?"
-            },
-            {
-                name: "departmentID",
-                type: "list",
-                message: "Which department does the job belong to?",
-                choices: allDepartments
-            }
-        ])
-};
-
-//create new role to database
-const addRole = async (connection, addRoleAns) => {
-    const sqlQuery = ("INSERT INTO role(title,salary,department_id) VALUE(?,?,?)");
-    const params = [addRoleAns.title, addRoleAns.salary, addRoleAns.departmentID.split(",")[0]];
-    const [rows, fields] = await connection.query(sqlQuery, params);
-    console.table(rows);
-};
-
-
-//view all employees
-const readAllEmplyees = async (connection) => {
-    const sqlQuery = ("SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS department, role.salary, CONCAT(manager.first_name,' ', manager.last_name) AS manager FROM employee LEFT JOIN role ON role.id = employee.role_id LEFT JOIN department ON department.id=role.department_id LEFT JOIN employee AS manager ON employee.manager_id = manager.id")
-    const [rows, fields] = await connection.query(sqlQuery);
-    console.table(rows);
-};
-
-//query with manager name
-const viewManager = async (connection) => {
-    const [rows, fields] = await connection.query("SELECT * FROM employee WHERE manager_id IS NULL");
-    return rows;
-};
-
-//add new employee - prompt questions - employee info
+//Add Employees - Prompt
 const addEmployeePrompt = async (connection) => {
 
-    let allManager = await viewManager(connection);
-    allManager = allManager.map((employee) => {
+    let manager = await viewManager(connection);
+    manager = manager.map((employee) => {
         return `${employee.id},${employee.first_name},${employee.last_name}`;
     });
 
-    allManager.push("None");
+    manager.push("N/A");
 
-    const allRoles = await getRole(connection);
-    let viewAllRoles = allRoles.map((role) => {
+    const roles = await getRole(connection);
+    let viewRoles = roles.map((role) => {
         return `${role.id}, ${role.title}`;
     });
 
@@ -189,64 +182,71 @@ const addEmployeePrompt = async (connection) => {
             {
                 name: "firstName",
                 type: "input",
-                message: "What is the employee's first name?"
+                message: "Enter the employee's first name?"
             },
             {
                 name: "lastName",
                 type: "input",
-                message: "What is the employee's last name?"
+                message: "Enter the employee's last name?"
             },
             {
                 name: "roleId",
                 type: "list",
-                message: "What is the employee's role?",
-                choices: viewAllRoles
+                message: "Enter the employee's role?",
+                choices: viewRoles
             },
             {
                 name: "manager",
                 type: "list",
-                message: "Who is the employee's manager",
-                choices: allManager
+                message: "Enter the employee's manager",
+                choices: manager
             }
         ])
 };
 
-//add employees to database
-const addEmployee = async (connection, addEmployeeAns) => {
+//Add Employees to DB
+const addEmployee = async (connection, addEmployeeSelection) => {
     const sqlQuery = "INSERT INTO employee(first_name,last_name,role_id,manager_id) VALUES (?,?,?,?)";
 
-    if (addEmployeeAns.manager === "None") {
+    if (addEmployeeSelection.manager === "None") {
         managerId = null;
     } else { 
-        managerId = parseInt(addEmployeeAns.manager.split(",")[0])
+        managerId = parseInt(addEmployeeSelection.manager.split(",")[0])
     };
-    const params = [addEmployeeAns.firstName, addEmployeeAns.lastName, addEmployeeAns.roleId.split(",")[0], managerId];
+    const params = [addEmployeeSelection.firstName, addEmployeeSelection.lastName, addEmployeeSelection.roleId.split(",")[0], managerId];
     const [rows, fields] = await connection.query(sqlQuery, params);
 
     console.table(rows);
 };
 
-//view all from employee
-const readAllFromEmployee = async (connection) => {
-    const [rows, fields] = await connection.query ("SELECT * FROM employee");
+//View Employees
+const readEmployees = async (connection) => {
+    const sqlQuery = ("SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS department, role.salary, CONCAT(manager.first_name,' ', manager.last_name) AS manager FROM employee LEFT JOIN role ON role.id = employee.role_id LEFT JOIN department ON department.id=role.department_id LEFT JOIN employee AS manager ON employee.manager_id = manager.id")
+    const [rows, fields] = await connection.query(sqlQuery);
     console.table(rows);
-    return rows;
 };
+
+// View Employees
+// const readAllFromEmployee = async (connection) => {
+//     const [rows, fields] = await connection.query ("SELECT * FROM employee");
+//     console.table(rows);
+//     return rows;
+// };
 
 const getEmployee = async (connection) => {
     const [rows, fields] = await connection.query ("SELECT * FROM employee");
     return rows;
 };
 
-//update employee role - prompt role
+//Update Employee Role - Prompt
 const updateRolePrompt = async (connection) => {
-    let allEmployees = await getEmployee(connection);
-    allEmployees = allEmployees.map((employee) => {
+    let employees = await getEmployee(connection);
+    employees = employees.map((employee) => {
         return `${employee.id}, ${employee.first_name},${employee.last_name}`;
     });
 
-    const allRoles = await readAllRole(connection);
-    let viewAllRoles = allRoles.map((role) => {
+    const roles = await readRole(connection);
+    let viewRoles = roles.map((role) => {
         return `${role.id}, ${role.title}`;
     });
 
@@ -255,22 +255,22 @@ const updateRolePrompt = async (connection) => {
         {
             name: "role",
             type: "list",
-            message: "Which employee'role would you like to update?",
-            choices: allEmployees
+            message: "Enter a employee to update?",
+            choices: employees
         },
         {
             name: "newRole",
             type: "list",
-            message: "What is the employee's new role?",
-            choices: viewAllRoles
+            message: "Enter the employee's new role?",
+            choices: viewRoles
         }
     ])
 };
 
-//update employee role
-const updateRole = async (connection,updateRoleAns) => {
+//Update Employee Role
+const updateRole = async (connection,updateRoleSelection) => {
     const sqlQuery = ("UPDATE employee SET role_id = ? WHERE id = ?");
-    const params = [updateRoleAns.newRole.split(",")[0],updateRoleAns.role.split(",")[0]]
+    const params = [updateRoleSelection.newRole.split(",")[0],updateRoleSelection.role.split(",")[0]]
     const [rows, fields] = await connection.query(sqlQuery,params);
     console.table(rows);
 };
